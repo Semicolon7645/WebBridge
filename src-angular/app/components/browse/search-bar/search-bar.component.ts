@@ -1,9 +1,8 @@
-import { AfterViewInit, Component, ElementRef, OnInit, ViewChild, inject, signal, computed, effect } from '@angular/core'
-import { AbstractControl, FormBuilder, FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms'
 import { NgClass } from '@angular/common'
+import { AfterViewInit, Component, computed, effect, ElementRef, inject, Injector, OnInit, signal, ViewChild } from '@angular/core'
+import { AbstractControl, FormBuilder, FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms'
 
 import dayjs from 'dayjs'
-import { distinctUntilChanged, switchMap, throttleTime } from 'rxjs'
 import { Difficulty, Instrument } from 'scan-chart'
 import { SearchService } from 'src-angular/app/core/services/search.service'
 import { difficulties, difficultyDisplay, drumsReviewedDisplay, drumTypeDisplay, DrumTypeName, drumTypeNames, instrumentDisplay, instruments } from 'src-shared/UtilFunctions'
@@ -18,15 +17,16 @@ import { difficulties, difficultyDisplay, drumsReviewedDisplay, drumTypeDisplay,
 export class SearchBarComponent implements OnInit, AfterViewInit {
 	private searchService = inject(SearchService)
 	private fb = inject(FormBuilder)
+	private injector = inject(Injector)
 
-	@ViewChild('searchInput') searchInput: ElementRef<HTMLInputElement>
+	@ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>
 
-	@ViewChild('hasSoloSections') hasSoloSections: ElementRef<HTMLInputElement>
-	@ViewChild('hasForcedNotes') hasForcedNotes: ElementRef<HTMLInputElement>
-	@ViewChild('hasOpenNotes') hasOpenNotes: ElementRef<HTMLInputElement>
-	@ViewChild('hasTapNotes') hasTapNotes: ElementRef<HTMLInputElement>
-	@ViewChild('hasRollLanes') hasRollLanes: ElementRef<HTMLInputElement>
-	@ViewChild('has2xKick') has2xKick: ElementRef<HTMLInputElement>
+	@ViewChild('hasSoloSections') hasSoloSections!: ElementRef<HTMLInputElement>
+	@ViewChild('hasForcedNotes') hasForcedNotes!: ElementRef<HTMLInputElement>
+	@ViewChild('hasOpenNotes') hasOpenNotes!: ElementRef<HTMLInputElement>
+	@ViewChild('hasTapNotes') hasTapNotes!: ElementRef<HTMLInputElement>
+	@ViewChild('hasRollLanes') hasRollLanes!: ElementRef<HTMLInputElement>
+	@ViewChild('has2xKick') has2xKick!: ElementRef<HTMLInputElement>
 
 	showAdvanced = signal(false)
 	instruments = instruments
@@ -37,7 +37,7 @@ export class SearchBarComponent implements OnInit, AfterViewInit {
 	drumTypeDisplay = drumTypeDisplay
 	drumsReviewedDisplay = drumsReviewedDisplay
 
-	advancedSearchForm: ReturnType<this['getAdvancedSearchForm']>
+	advancedSearchForm!: ReturnType<this['getAdvancedSearchForm']>
 	startValidation = signal(false)
 
 	// Reactive getters
@@ -52,12 +52,6 @@ export class SearchBarComponent implements OnInit, AfterViewInit {
 
 	ngOnInit() {
 		this.initializeAdvancedSearchForm()
-
-		// Watch search value changes
-		effect(() => {
-			const value = this.searchValue()
-			// This will be handled by template binding
-		})
 	}
 
 	ngAfterViewInit() {
@@ -66,9 +60,9 @@ export class SearchBarComponent implements OnInit, AfterViewInit {
 
 		// Watch for instrument changes to update disabled controls
 		effect(() => {
-			const _ = this.instrument() // Track the signal
+			const _ = this.instrument()
 			this.updateDisabledControls()
-		})
+		}, { injector: this.injector })
 	}
 
 	onSearchInput(value: string) {

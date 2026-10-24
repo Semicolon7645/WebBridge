@@ -1,6 +1,6 @@
-import { Component, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core'
-import { ReactiveFormsModule, FormsModule, FormControl } from '@angular/forms'
 import { NgClass } from '@angular/common'
+import { Component, ElementRef, inject, OnInit, signal, ViewChild } from '@angular/core'
+import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms'
 
 import _ from 'lodash'
 import { SettingsService } from 'src-angular/app/core/services/settings.service'
@@ -74,22 +74,31 @@ export class SettingsComponent implements OnInit {
 	}
 
 	async ngOnInit() {
+		if (typeof window === 'undefined' || !window.electron) {
+			this.updateAvailable.set('no')
+			return
+		}
+
 		window.electron.on.updateAvailable(result => {
 			this.updateAvailable.set(result !== null ? 'yes' : 'no')
 			this.updateRetrying.set(false)
+
 			if (result !== null) {
 				this.downloadUpdateText.set(`Download Update (${result.version})`)
 			}
 		})
+
 		window.electron.on.updateError(err => {
 			console.log(err)
 			this.updateAvailable.set('error')
 			this.updateRetrying.set(false)
 			this.retryUpdateText.set('Failed to check for update')
 		})
+
 		window.electron.invoke.getCurrentVersion().then(version => {
 			this.currentVersion.set(`v${version}`)
 		})
+
 		window.electron.invoke.getUpdateAvailable().then(isAvailable => {
 			this.updateAvailable.set(isAvailable)
 		})

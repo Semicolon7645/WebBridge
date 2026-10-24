@@ -3,20 +3,22 @@
  * Main UI for browsing and managing local chart library
  */
 
-import { Component, OnInit, OnDestroy, inject, signal, computed, effect, ViewChild, ElementRef, AfterViewInit } from '@angular/core'
-import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms'
-import { Router } from '@angular/router'
+import { AfterViewInit, Component, computed, effect, ElementRef, inject, Injector, OnDestroy, OnInit, signal, ViewChild } from '@angular/core'
+import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser'
-import { Subject, debounceTime, distinctUntilChanged } from 'rxjs'
+import { Router } from '@angular/router'
+
+import { debounceTime, distinctUntilChanged, Subject } from 'rxjs'
 import { Difficulty, Instrument } from 'scan-chart'
-import { ChartRecord, CatalogStats, ScanProgress, CatalogFilter } from '../../../../src-shared/interfaces/catalog.interface.js'
+
+import { CatalogFilter, CatalogStats, ChartRecord, ScanProgress } from '../../../../src-shared/interfaces/catalog.interface.js'
 import { ChartData } from '../../../../src-shared/interfaces/search.interface.js'
-import { CatalogService } from '../../core/services/catalog.service'
+import { difficulties, difficultyDisplay, instruments, shortInstrumentDisplay } from '../../../../src-shared/UtilFunctions.js'
+import { environment } from '../../../environments/environment'
 import { ArtStudioService } from '../../core/services/art-studio.service'
+import { CatalogService } from '../../core/services/catalog.service'
 import { SettingsService } from '../../core/services/settings.service'
 import { ChartSidebarPreviewComponent } from '../browse/chart-sidebar/chart-sidebar-preview/chart-sidebar-preview.component'
-import { difficulties, instruments, shortInstrumentDisplay, difficultyDisplay } from '../../../../src-shared/UtilFunctions.js'
-import { environment } from '../../../environments/environment'
 
 @Component({
 	selector: 'app-library',
@@ -30,6 +32,7 @@ export class LibraryComponent implements OnInit, OnDestroy, AfterViewInit {
 	settingsService = inject(SettingsService)
 	private router = inject(Router)
 	private sanitizer = inject(DomSanitizer)
+	private injector = inject(Injector)
 
 	private searchSubject = new Subject<string>()
 	private intersectionObserver: IntersectionObserver | null = null
@@ -244,7 +247,7 @@ export class LibraryComponent implements OnInit, OnDestroy, AfterViewInit {
 			if (chartsLength > 0) {
 				setTimeout(() => this.observeSentinel(), 0)
 			}
-		})
+		}, { injector: this.injector })
 	}
 
 	ngOnDestroy(): void {
@@ -811,7 +814,9 @@ export class LibraryComponent implements OnInit, OnDestroy, AfterViewInit {
 		// Trigger async load if not already loading
 		const loading = this.loadingArtPaths()
 		if (!loading.has(chart.path)) {
-			this.loadAlbumArt(chart.path)
+			setTimeout(() => {
+				void this.loadAlbumArt(chart.path)
+			}, 0)
 		}
 
 		return null // Will show placeholder until loaded

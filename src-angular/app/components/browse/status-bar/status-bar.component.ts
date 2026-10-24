@@ -1,5 +1,5 @@
-import { Component, ElementRef, ViewChild, inject, computed, effect } from '@angular/core'
 import { DecimalPipe } from '@angular/common'
+import { Component, computed, effect, ElementRef, inject, ViewChild } from '@angular/core'
 
 import _ from 'lodash'
 
@@ -20,7 +20,7 @@ export class StatusBarComponent {
 	searchService = inject(SearchService)
 	private selectionService = inject(SelectionService)
 
-	@ViewChild('downloadsModal', { static: false }) downloadsModalComponent: ElementRef
+	@ViewChild('downloadsModal', { static: false }) downloadsModalComponent!: ElementRef
 
 	selectedGroupIds = computed(() => {
 		const selections = this.selectionService.selections()

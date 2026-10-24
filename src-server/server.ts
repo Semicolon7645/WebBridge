@@ -1,7 +1,9 @@
 import express from 'express'
-import { existsSync } from 'node:fs'
-import { access, constants, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { createReadStream, existsSync } from 'node:fs'
+import { access, constants, readdir, readFile, writeFile } from 'node:fs/promises'
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { Readable } from 'node:stream'
+import { SngStream } from 'parse-sng'
 
 import { configureCatalogDb, getCatalogDb } from '../src-electron/ipc/catalog/CatalogDatabase.js'
 import { getChartScanner } from '../src-electron/ipc/catalog/ChartScanner.js'
@@ -79,6 +81,141 @@ app.get(`${catalog}/chart/:id`, (req, res, next) => {
 		next(error)
 	}
 })
+
+
+app.get(`${catalog}/chart-art`, async (req, res, next) => {
+	try {
+		const chartPath = req.query.chartPath
+		const type = req.query.type
+
+		if (
+			typeof chartPath !== 'string' ||
+			!chartPath ||
+			(type !== 'album' && type !== 'background')
+		) {
+			res.status(400).json({
+				error: 'A chart path and valid artwork type are required',
+			})
+			return
+		}
+
+		const chartFile = resolve(chartPath)
+		const pathFromSongs = relative(resolve(songsPath), chartFile)
+
+		if (
+			pathFromSongs === '..' ||
+			pathFromSongs.startsWith(`..${sep}`) ||
+			isAbsolute(pathFromSongs)
+		) {
+			res.status(403).json({
+				error: 'Chart path is outside the song library',
+			})
+			return
+		}
+
+		const isImage = (name: string) =>
+			['.png', '.jpg', '.jpeg'].includes(extname(name).toLowerCase())
+
+		const matchesImage = (name: string) => {
+			const lower = name.toLowerCase()
+
+			if (!isImage(lower)) return false
+
+			return type === 'album'
+				? ['album.png', 'album.jpg', 'album.jpeg'].includes(lower)
+				: lower.startsWith('background')
+		}
+
+		// .sng files are archives, so extract the requested image from the stream.
+		if (chartFile.toLowerCase().endsWith('.sng')) {
+			const sngStream = new SngStream(
+				Readable.toWeb(createReadStream(chartFile)) as ReadableStream<Uint8Array>,
+				{ generateSongIni: true },
+			)
+
+			let imageName: string | null = null
+			const imageChunks: Uint8Array[] = []
+
+			await new Promise<void>((resolvePromise, rejectPromise) => {
+				sngStream.on('error', rejectPromise)
+
+				sngStream.on('file', async (fileName, fileStream, nextFile) => {
+					try {
+						const reader = fileStream.getReader()
+						const isTarget = !imageName && matchesImage(fileName)
+
+						while (true) {
+							const { done, value } = await reader.read()
+							if (done) break
+
+							if (isTarget) {
+								imageChunks.push(value)
+							}
+						}
+
+						if (isTarget) {
+							imageName = fileName
+						}
+
+						if (nextFile) {
+							nextFile()
+						} else {
+							resolvePromise()
+						}
+					} catch (error) {
+						rejectPromise(error)
+					}
+				})
+
+				sngStream.start()
+			})
+
+			if (!imageName) {
+				res.status(404).end()
+				return
+			}
+
+			const imageBuffer = Buffer.concat(imageChunks)
+			const mimeType =
+				extname(imageName).toLowerCase() === '.png'
+					? 'image/png'
+					: 'image/jpeg'
+
+			res.type(mimeType).send(imageBuffer)
+			return
+		}
+
+		// Regular chart folders still use their existing loose image files.
+		const entries = await readdir(chartFile)
+		const imageFile = entries.find(matchesImage)
+
+		if (!imageFile) {
+			res.status(404).end()
+			return
+		}
+
+		const imageBuffer = await readFile(resolve(chartFile, imageFile))
+		const mimeType =
+			extname(imageFile).toLowerCase() === '.png'
+				? 'image/png'
+				: 'image/jpeg'
+
+		res.type(mimeType).send(imageBuffer)
+	} catch (error) {
+		if (
+			typeof error === 'object' &&
+			error !== null &&
+			'code' in error &&
+			(error.code === 'ENOENT' || error.code === 'ENOTDIR')
+		) {
+			res.status(404).end()
+			return
+		}
+
+		next(error)
+	}
+})
+
 
 app.post(`${catalog}/charts`, (req, res, next) => {
 	try {

@@ -9,9 +9,9 @@
   "isCompactTable": false,
   "visibleColumns": [
     "artist",
-    "album",
     "genre",
-    "year"
+    "year",
+    "album"
   ],
   "zoomFactor": 1,
   "instrument": "guitar",

@@ -2,7 +2,10 @@
  * Bridge Art Studio Module - Angular Service
  */
 
+import { HttpClient } from '@angular/common/http'
 import { Injectable, signal } from '@angular/core'
+
+import { firstValueFrom } from 'rxjs'
 
 import { AlbumArtResult, ArtDownloadOptions, ArtDownloadProgress, BackgroundGenerateOptions, ChartArtMatch } from '../../../../src-shared/interfaces/art-studio.interface.js'
 
@@ -13,7 +16,7 @@ export class ArtStudioService {
 	readonly downloadProgress = signal<ArtDownloadProgress | null>(null)
 	readonly isProcessing = signal<boolean>(false)
 
-	constructor() {
+	constructor(private http: HttpClient) {
 		this.setupIpcListeners()
 	}
 
@@ -145,21 +148,47 @@ export class ArtStudioService {
 		}
 	}
 
-	async getAlbumArtDataUrl(chartPath: string): Promise<string | null> {
+	private async getChartArtDataUrl(
+		chartPath: string,
+		type: 'album' | 'background',
+	): Promise<string | null> {
 		try {
-			return await window.electron.invoke.artGetAlbumArtDataUrl({ chartPath })
+			if (window.electron) {
+				return type === 'album'
+					? await window.electron.invoke.artGetAlbumArtDataUrl({ chartPath })
+					: await window.electron.invoke.artGetBackgroundDataUrl({ chartPath })
+			}
+
+			const blob = await firstValueFrom(
+				this.http.get('/api/catalog/chart-art', {
+					params: { chartPath, type },
+					responseType: 'blob',
+				}),
+			)
+
+			return await new Promise<string>((resolve, reject) => {
+				const reader = new FileReader()
+				reader.onload = () => {
+					if (typeof reader.result === 'string') {
+						resolve(reader.result)
+					} else {
+						reject(new Error('Failed to read artwork'))
+					}
+				}
+				reader.onerror = () => reject(reader.error)
+				reader.readAsDataURL(blob)
+			})
 		} catch (err) {
-			console.error('Failed to get album art data URL:', err)
+			console.error(`Failed to get ${type} data URL:`, err)
 			return null
 		}
 	}
 
+	async getAlbumArtDataUrl(chartPath: string): Promise<string | null> {
+		return this.getChartArtDataUrl(chartPath, 'album')
+	}
+
 	async getBackgroundDataUrl(chartPath: string): Promise<string | null> {
-		try {
-			return await window.electron.invoke.artGetBackgroundDataUrl({ chartPath })
-		} catch (err) {
-			console.error('Failed to get background data URL:', err)
-			return null
-		}
+		return this.getChartArtDataUrl(chartPath, 'background')
 	}
 }
