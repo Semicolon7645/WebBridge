@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.angular
+data
+config
+songs
+release
+.env
