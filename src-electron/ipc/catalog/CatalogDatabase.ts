@@ -5,8 +5,8 @@
 
 import Database from 'better-sqlite3'
 import * as path from 'path'
-import { ChartRecord, CatalogFilter, CatalogStats } from '../../../src-shared/interfaces/catalog.interface.js'
-import { dataPath } from '../../../src-shared/Paths.js'
+
+import { CatalogFilter, CatalogStats, ChartRecord } from '../../../src-shared/interfaces/catalog.interface.js'
 
 /** Helper to convert boolean to SQLite integer */
 const boolToInt = (val: boolean): number => val ? 1 : 0
@@ -24,10 +24,12 @@ class CatalogDatabase {
 	// Prepared statements cache for frequently used queries
 	private stmtCache: Map<string, Database.Statement> = new Map()
 
-	constructor() {
-		this.dbPath = path.join(dataPath, 'catalog.db')
+	constructor(dbPath: string) {
+		this.dbPath = dbPath
 		this.db = new Database(this.dbPath)
+
 		this.db.pragma('journal_mode = WAL')
+
 		this.initializeSchema()
 	}
 
@@ -847,12 +849,29 @@ class CatalogDatabase {
 	}
 }
 
-// Singleton instance
+// Singleton instance and configured database path
+
 let instance: CatalogDatabase | null = null
+let configuredDbPath: string | null = null
+
+export function configureCatalogDb(dbPath: string): void {
+	if (instance) {
+		throw new Error(
+			'Cannot configure catalog database after initialization.',
+		)
+	}
+
+	configuredDbPath = path.resolve(dbPath)
+}
 
 export function getCatalogDb(): CatalogDatabase {
 	if (!instance) {
-		instance = new CatalogDatabase()
+		if (!configuredDbPath) {
+			throw new Error('Catalog database path has not been configured.')
+		}
+
+		instance = new CatalogDatabase(configuredDbPath)
 	}
+
 	return instance
 }

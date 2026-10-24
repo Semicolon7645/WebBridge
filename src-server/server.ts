@@ -3,7 +3,10 @@ import { existsSync } from 'node:fs'
 import { access, constants } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { configPath, ensureStorageDirectories, frontendPath, songsPath, tempPath } from './paths.js'
+import { configureCatalogDb } from '../src-electron/ipc/catalog/CatalogDatabase.js'
+import { catalogPath, configPath, ensureStorageDirectories, frontendPath, songsPath, tempPath } from './paths.js'
+
+configureCatalogDb(catalogPath)
 
 const app = express()
 const port = Number(process.env.PORT ?? 8080)

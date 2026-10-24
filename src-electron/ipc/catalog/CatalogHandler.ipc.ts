@@ -6,10 +6,14 @@
 import { shell } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
+
 import { CatalogFilter, ChartRecord, ScanProgress } from '../../../src-shared/interfaces/catalog.interface.js'
-import { getCatalogDb } from './CatalogDatabase.js'
-import { getChartScanner } from './ChartScanner.js'
+import { dataPath } from '../../../src-shared/Paths.js'
 import { mainWindow } from '../../main.js'
+import { configureCatalogDb, getCatalogDb } from './CatalogDatabase.js'
+import { getChartScanner } from './ChartScanner.js'
+
+configureCatalogDb(path.join(dataPath, 'catalog.db'))
 
 // Initialize scanner event forwarding
 let scannerInitialized = false

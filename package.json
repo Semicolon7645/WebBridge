@@ -19,7 +19,7 @@
     "start": "npm run start:server",
     "start:server": "tsx watch src-server/server.ts",
     "build:web": "ng build -c production && tsc -p src-server/tsconfig.server.json",
-    "start:prod": "node dist/server/server.js"
+    "start:prod": "node dist/server/src-server/server.js"
   },
   "dependencies": {
     "@angular/animations": "21.1.3",

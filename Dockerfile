@@ -54,4 +54,4 @@ USER node
 
 EXPOSE 8080
 
-CMD ["node", "dist/server/server.js"]
+CMD ["node", "dist/server/src-server/server.js"]

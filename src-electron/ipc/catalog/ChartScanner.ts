@@ -7,14 +7,13 @@ import Bottleneck from 'bottleneck'
 import * as crypto from 'crypto'
 import { EventEmitter } from 'eventemitter3'
 import * as fs from 'fs'
-import * as path from 'path'
 import { SngHeader, SngStream } from 'parse-sng'
-import { scanChartFolder, ScannedChart, Difficulty, Instrument } from 'scan-chart'
+import * as path from 'path'
+import { Difficulty, Instrument, scanChartFolder, ScannedChart } from 'scan-chart'
 import { Readable } from 'stream'
 
-import { ChartRecord, ChartAssets, ScanProgress, ScanResult } from '../../../src-shared/interfaces/catalog.interface.js'
-import { appearsToBeChartFolder, getExtension, hasChartExtension, hasIniExtension, hasAlbumName, hasSngExtension } from '../../../src-shared/UtilFunctions.js'
-import { hasVideoExtension } from '../../ElectronUtilFunctions.js'
+import { ChartAssets, ChartRecord, ScanProgress, ScanResult } from '../../../src-shared/interfaces/catalog.interface.js'
+import { appearsToBeChartFolder, getExtension, hasAlbumName, hasChartExtension, hasIniExtension, hasSngExtension } from '../../../src-shared/UtilFunctions.js'
 import { getCatalogDb } from './CatalogDatabase.js'
 
 // File patterns for asset detection
@@ -349,7 +348,7 @@ class ChartScanner extends EventEmitter<ScannerEvents> {
 							hasIniExtension(fileName) ||
 							hasAlbumName(fileName)
 
-						if (shouldLoad && fileSize < CONFIG.MAX_FILE_SIZE_BYTES && !hasVideoExtension(fileName)) {
+						if (shouldLoad && fileSize < CONFIG.MAX_FILE_SIZE_BYTES && !VIDEO_EXTENSIONS.includes(path.extname(fileName).toLowerCase())) {
 							// Read the file data
 							const chunks: Uint8Array[] = []
 							const reader = fileStream.getReader()
