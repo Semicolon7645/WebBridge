@@ -3,8 +3,8 @@ import _ from 'lodash'
 import sanitize from 'sanitize-filename'
 import { Difficulty, Instrument } from 'scan-chart'
 
-import { ChartData } from './interfaces/search.interface'
-import { ThemeColors } from './interfaces/theme.interface'
+import type { ChartData } from './interfaces/search.interface.js'
+import type { ThemeColors } from './interfaces/theme.interface.js'
 
 // WARNING: do not import anything related to Electron; the code will not compile correctly.
 
@@ -392,7 +392,7 @@ export function convertColorFormat(input: ThemeColors) {
 
 	const resultObj: { [cssKey: string]: string } = {}
 
-	for (const [rule, value] of Object.entries(input)) {
+	for (const [rule, value] of Object.entries(input) as [string, string][]) {
 		if (Object.hasOwn(colorNames, rule)) {
 			const colorObj = oklch(value)
 			resultObj[colorNames[rule]] = colorObjToString(colorObj!)
