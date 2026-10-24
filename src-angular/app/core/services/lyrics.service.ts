@@ -3,7 +3,8 @@
  */
 
 import { Injectable, signal } from '@angular/core'
-import { LyricsSearchResult, ChartLyricsMatch, LyricsDownloadProgress } from '../../../../src-shared/interfaces/lyrics.interface.js'
+
+import { ChartLyricsMatch, LyricsDownloadProgress, LyricsSearchResult } from '../../../../src-shared/interfaces/lyrics.interface.js'
 
 @Injectable({
 	providedIn: 'root',
@@ -16,6 +17,10 @@ export class LyricsService {
 	}
 
 	private setupIpcListeners(): void {
+		if (typeof window === 'undefined' || !window.electron) {
+			return
+		}
+
 		window.electron.on.lyricsProgress((progress: LyricsDownloadProgress) => {
 			this.progress.set(progress)
 			if (progress.phase === 'complete' || progress.phase === 'error') {

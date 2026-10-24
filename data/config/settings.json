@@ -1,0 +1,20 @@
+{
+  "downloadVideos": true,
+  "theme": "dark",
+  "customTheme": null,
+  "customThemePath": null,
+  "libraryFolders": [],
+  "chartFolderName": "{artist} - {name} ({charter})",
+  "isSng": false,
+  "isCompactTable": false,
+  "visibleColumns": [
+    "artist",
+    "album",
+    "genre",
+    "year"
+  ],
+  "zoomFactor": 1,
+  "instrument": "guitar",
+  "difficulty": null,
+  "volume": 50
+}

@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core'
+import { computed, Injectable, signal } from '@angular/core'
 
 import _ from 'lodash'
 import { ChartData } from 'src-shared/interfaces/search.interface'
@@ -50,6 +50,10 @@ export class DownloadService {
 	)
 
 	constructor(private settingsService: SettingsService) {
+		if (typeof window.electron === 'undefined') {
+			return
+		}
+
 		window.electron.on.downloadQueueUpdate(download => {
 			this.downloads.update(downloads => {
 				const downloadIndex = downloads.findIndex(d => d.md5 === download.md5)

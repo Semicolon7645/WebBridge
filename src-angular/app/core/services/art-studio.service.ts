@@ -2,14 +2,9 @@
  * Bridge Art Studio Module - Angular Service
  */
 
-import { Injectable, signal, computed } from '@angular/core'
-import {
-	AlbumArtResult,
-	ArtDownloadProgress,
-	ArtDownloadOptions,
-	BackgroundGenerateOptions,
-	ChartArtMatch,
-} from '../../../../src-shared/interfaces/art-studio.interface.js'
+import { Injectable, signal } from '@angular/core'
+
+import { AlbumArtResult, ArtDownloadOptions, ArtDownloadProgress, BackgroundGenerateOptions, ChartArtMatch } from '../../../../src-shared/interfaces/art-studio.interface.js'
 
 @Injectable({
 	providedIn: 'root',
@@ -23,6 +18,10 @@ export class ArtStudioService {
 	}
 
 	private setupIpcListeners(): void {
+		if (typeof window === 'undefined' || !window.electron) {
+			return
+		}
+
 		window.electron.on.artDownloadProgress((progress: ArtDownloadProgress) => {
 			this.downloadProgress.set(progress)
 

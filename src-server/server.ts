@@ -1,19 +1,20 @@
 import express from 'express'
 import { existsSync } from 'node:fs'
-import { access, constants } from 'node:fs/promises'
+import { access, constants, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { configureCatalogDb, getCatalogDb } from '../src-electron/ipc/catalog/CatalogDatabase.js'
 import { getChartScanner } from '../src-electron/ipc/catalog/ChartScanner.js'
-import { catalogPath, configPath, ensureStorageDirectories, frontendPath, songsPath, tempPath } from './paths.js'
+import { defaultSettings } from '../src-shared/Settings.js'
+import { catalogPath, configPath, ensureStorageDirectories, frontendPath, settingsPath, songsPath, tempPath } from './paths.js'
 
+import type { Settings } from '../src-shared/Settings.js'
 import type { CatalogFilter } from '../src-shared/interfaces/catalog.interface.js'
 import type { Response } from 'express'
 import type {
 	ScanProgress,
 	ScanResult,
 } from '../src-shared/interfaces/catalog.interface.js'
-
 configureCatalogDb(catalogPath)
 
 const app = express()
@@ -113,6 +114,34 @@ app.post(`${catalog}/charts/count`, (req, res, next) => {
 	}
 })
 
+app.post(`${catalog}/charts/exists`, (req, res, next) => {
+	try {
+		const charts = req.body?.charts
+
+		if (
+			!Array.isArray(charts) ||
+			!charts.every(
+				(chart: unknown) =>
+					chart !== null &&
+					typeof chart === 'object' &&
+					typeof (chart as { artist?: unknown }).artist === 'string' &&
+					typeof (chart as { name?: unknown }).name === 'string' &&
+					typeof (chart as { charter?: unknown }).charter === 'string',
+			)
+		) {
+			res.status(400).json({
+				error: 'An array of charts with artist, name, and charter is required',
+			})
+			return
+		}
+
+		const result = getCatalogDb().checkChartsExist(charts)
+		res.json(Object.fromEntries(result))
+	} catch (error) {
+		next(error)
+	}
+})
+
 app.get(`${catalog}/distinct/:column`, (req, res, next) => {
 	try {
 		const column = req.params.column
@@ -133,6 +162,56 @@ app.get(`${catalog}/distinct/:column`, (req, res, next) => {
 	}
 })
 
+app.get('/api/settings', async (_req, res, next) => {
+	try {
+		let settings: Settings
+
+		try {
+			settings = {
+				...defaultSettings,
+				...JSON.parse(await readFile(settingsPath, 'utf8')),
+			}
+		} catch (error) {
+			if (
+				typeof error === 'object' &&
+				error !== null &&
+				'code' in error &&
+				error.code === 'ENOENT'
+			) {
+				settings = { ...defaultSettings }
+			} else {
+				throw error
+			}
+		}
+
+		res.json(settings)
+	} catch (error) {
+		next(error)
+	}
+})
+
+app.put('/api/settings', async (req, res, next) => {
+	try {
+		if (
+			req.body === null ||
+			typeof req.body !== 'object' ||
+			Array.isArray(req.body)
+		) {
+			res.status(400).json({ error: 'A settings object is required' })
+			return
+		}
+
+		const settings: Settings = {
+			...defaultSettings,
+			...req.body,
+		}
+
+		await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8')
+		res.json({ status: 'ok' })
+	} catch (error) {
+		next(error)
+	}
+})
 
 const eventClients = new Set<Response>()
 

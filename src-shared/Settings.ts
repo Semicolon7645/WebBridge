@@ -1,6 +1,6 @@
 import { Difficulty, Instrument } from 'scan-chart'
 
-import { ThemeColors } from './interfaces/theme.interface'
+import type { ThemeColors } from './interfaces/theme.interface.js'
 
 export const themes = [
 	'business',

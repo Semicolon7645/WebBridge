@@ -3,12 +3,8 @@
  */
 
 import { Injectable, signal } from '@angular/core'
-import {
-	YouTubeSearchResult,
-	VideoDownloadProgress,
-	VideoDownloadOptions,
-	ChartVideoMatch,
-} from '../../../../src-shared/interfaces/video-sync.interface.js'
+
+import { ChartVideoMatch, VideoDownloadOptions, VideoDownloadProgress, YouTubeSearchResult } from '../../../../src-shared/interfaces/video-sync.interface.js'
 
 @Injectable({
 	providedIn: 'root',
@@ -24,6 +20,10 @@ export class VideoSyncService {
 	}
 
 	private setupIpcListeners(): void {
+		if (typeof window === 'undefined' || !window.electron) {
+			return
+		}
+
 		window.electron.on.videoDownloadProgress((progress: VideoDownloadProgress) => {
 			this.downloadProgress.set(progress)
 

@@ -3,8 +3,12 @@
  * Provides catalog operations to Angular components via Electron IPC
  */
 
-import { Injectable, signal, inject, computed } from '@angular/core'
-import { ChartRecord, CatalogFilter, CatalogStats, ScanProgress, ScanResult } from '../../../../src-shared/interfaces/catalog.interface.js'
+import { HttpClient } from '@angular/common/http'
+import { computed, inject, Injectable, signal } from '@angular/core'
+
+import { firstValueFrom } from 'rxjs'
+
+import { CatalogFilter, CatalogStats, ChartRecord, ScanProgress, ScanResult } from '../../../../src-shared/interfaces/catalog.interface.js'
 import { SettingsService } from './settings.service'
 
 /** Number of charts to load per page */
@@ -15,6 +19,7 @@ const PAGE_SIZE = 100
 })
 export class CatalogService {
 	private settingsService = inject(SettingsService)
+	private http = inject(HttpClient)
 
 	// State signals
 	readonly charts = signal<ChartRecord[]>([])
@@ -42,24 +47,27 @@ export class CatalogService {
 	}
 
 	private setupIpcListeners(): void {
+		if (typeof window === 'undefined' || !window.electron) {
+			return
+		}
+
 		window.electron.on.catalogScanProgress((progress: ScanProgress) => {
 			this.scanProgress.set(progress)
+
 			if (progress.phase === 'complete') {
 				this.scanProgress.set(null)
-				this.refreshCharts()
-				this.refreshStats()
+				void this.refreshCharts()
+				void this.refreshStats()
 			}
 		})
 	}
 
 	private async initializeFromSettings(): Promise<void> {
-		// Wait a tick for settings to be loaded
-		setTimeout(async () => {
-			const libraryFolders = this.settingsService.libraryFolders
-			if (libraryFolders && libraryFolders.length > 0) {
-				this.refreshCharts()
-				this.refreshStats()
-			}
+		// The web server owns the song library, so catalog reads do not
+		// depend on desktop library-folder settings.
+		setTimeout(() => {
+			void this.refreshCharts()
+			void this.refreshStats()
 		}, 100)
 	}
 
@@ -86,16 +94,31 @@ export class CatalogService {
 
 	async refreshCharts(): Promise<void> {
 		this.isLoading.set(true)
+
 		try {
 			const currentFilter = this.filter()
 
-			// Get total count for pagination (without limit/offset)
-			const totalCount = await window.electron.invoke.catalogGetChartsCount(currentFilter)
+			const totalCount = await firstValueFrom(
+				this.http.post<number>(
+					'/api/catalog/charts/count',
+					currentFilter,
+				),
+			)
 			this.totalFilteredCount.set(totalCount)
 
-			// Get first page of charts
-			const paginatedFilter = { ...currentFilter, limit: PAGE_SIZE, offset: 0 }
-			const charts = await window.electron.invoke.catalogGetCharts(paginatedFilter)
+			const paginatedFilter = {
+				...currentFilter,
+				limit: PAGE_SIZE,
+				offset: 0,
+			}
+
+			const charts = await firstValueFrom(
+				this.http.post<ChartRecord[]>(
+					'/api/catalog/charts',
+					paginatedFilter,
+				),
+			)
+
 			this.charts.set(charts)
 			this.currentOffset.set(charts.length)
 		} catch (err) {
@@ -105,19 +128,27 @@ export class CatalogService {
 		}
 	}
 
-	/**
-	 * Load the next page of charts (for infinite scroll)
-	 */
 	async loadMoreCharts(): Promise<void> {
 		if (this.isLoadingMore() || !this.hasMore()) return
 
 		this.isLoadingMore.set(true)
+
 		try {
 			const currentFilter = this.filter()
 			const offset = this.currentOffset()
 
-			const paginatedFilter = { ...currentFilter, limit: PAGE_SIZE, offset }
-			const newCharts = await window.electron.invoke.catalogGetCharts(paginatedFilter)
+			const paginatedFilter = {
+				...currentFilter,
+				limit: PAGE_SIZE,
+				offset,
+			}
+
+			const newCharts = await firstValueFrom(
+				this.http.post<ChartRecord[]>(
+					'/api/catalog/charts',
+					paginatedFilter,
+				),
+			)
 
 			if (newCharts.length > 0) {
 				this.charts.update(existing => [...existing, ...newCharts])
@@ -140,7 +171,10 @@ export class CatalogService {
 
 	async refreshStats(): Promise<void> {
 		try {
-			const stats = await window.electron.invoke.catalogGetStats()
+			const stats = await firstValueFrom(
+				this.http.get<CatalogStats>('/api/catalog/stats'),
+			)
+
 			this.stats.set(stats)
 		} catch (err) {
 			console.error('Failed to get stats:', err)
@@ -149,7 +183,9 @@ export class CatalogService {
 
 	async getChart(id: number): Promise<ChartRecord | null> {
 		try {
-			return await window.electron.invoke.catalogGetChart(id)
+			return await firstValueFrom(
+				this.http.get<ChartRecord>(`/api/catalog/chart/${id}`),
+			)
 		} catch (err) {
 			console.error('Failed to get chart:', err)
 			return null
@@ -171,9 +207,13 @@ export class CatalogService {
 		window.electron.emit.catalogOpenFolder(id)
 	}
 
-	async getDistinctValues(column: 'artist' | 'charter' | 'genre' | 'album'): Promise<string[]> {
+	async getDistinctValues(
+		column: 'artist' | 'charter' | 'genre' | 'album',
+	): Promise<string[]> {
 		try {
-			return await window.electron.invoke.catalogGetDistinct(column)
+			return await firstValueFrom(
+				this.http.get<string[]>(`/api/catalog/distinct/${column}`),
+			)
 		} catch (err) {
 			console.error(`Failed to get distinct ${column}:`, err)
 			return []
@@ -246,15 +286,16 @@ export class CatalogService {
 		}
 	}
 
-	/**
-	 * Check if charts exist in library by artist, name, and charter
-	 * Used to mark Chorus search results that are already in library
-	 */
 	async checkChartsExist(
 		charts: Array<{ artist: string; name: string; charter: string }>
 	): Promise<Record<string, boolean>> {
 		try {
-			return await window.electron.invoke.catalogCheckChartsExist(charts)
+			return await firstValueFrom(
+				this.http.post<Record<string, boolean>>(
+					'/api/catalog/charts/exists',
+					{ charts },
+				),
+			)
 		} catch (err) {
 			console.error('Failed to check charts existence:', err)
 			return {}

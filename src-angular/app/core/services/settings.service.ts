@@ -1,6 +1,8 @@
-import { Inject, Injectable, DOCUMENT, signal, computed } from '@angular/core'
+import { HttpClient } from '@angular/common/http'
+import { DOCUMENT, Inject, Injectable, signal } from '@angular/core'
 
 import _ from 'lodash'
+import { firstValueFrom } from 'rxjs'
 import { Difficulty, Instrument } from 'scan-chart'
 
 import { ThemeColors } from '../../../../src-shared/interfaces/theme.interface.js'
@@ -16,12 +18,13 @@ export class SettingsService {
 
 	constructor(
 		@Inject(DOCUMENT) private document: Document,
+		private http: HttpClient,
 	) { }
 
 	async loadSettings() {
-		console.log('[DEBUG] loadSettings() called, invoking getSettings...')
-		const settings = await window.electron.invoke.getSettings()
-		console.log('[DEBUG] getSettings returned:', settings)
+		const settings = await firstValueFrom(
+			this.http.get<Settings>('/api/settings')
+		)
 
 		// Migrate from old single libraryPath to new libraryFolders array
 		if (settings.libraryPath && (!settings.libraryFolders || settings.libraryFolders.length === 0)) {
@@ -35,17 +38,14 @@ export class SettingsService {
 		}
 
 		this._settings.set(settings)
+
 		if (settings.customTheme) {
-			console.log('[DEBUG] Setting custom theme colors')
 			setThemeColors(settings.customTheme)
 		} else if (!themes.includes(settings.theme)) {
-			console.log('[DEBUG] Theme not in themes list, defaulting to dark')
 			this.changeTheme('dark')
 		} else {
-			console.log('[DEBUG] Changing theme to:', settings.theme)
 			this.changeTheme(settings.theme)
 		}
-		console.log('[DEBUG] loadSettings() completed successfully')
 
 		// Save migrated settings
 		if (settings.libraryPath === undefined && settings.libraryFolders.length > 0) {
@@ -58,7 +58,11 @@ export class SettingsService {
 	}
 
 	private saveSettings() {
-		window.electron.emit.setSettings(this.settings)
+		void firstValueFrom(
+			this.http.put('/api/settings', this.settings)
+		).catch(error => {
+			console.error('Failed to save settings:', error)
+		})
 	}
 
 	private changeTheme(theme: typeof themes[number]) {

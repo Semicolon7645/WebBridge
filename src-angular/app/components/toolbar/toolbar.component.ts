@@ -1,6 +1,6 @@
+import { NgClass } from '@angular/common'
 import { Component, OnInit, signal } from '@angular/core'
 import { RouterLink, RouterLinkActive } from '@angular/router'
-import { NgClass } from '@angular/common'
 
 @Component({
 	selector: 'app-toolbar',
@@ -14,7 +14,12 @@ export class ToolbarComponent implements OnInit {
 	updateAvailable = signal<'yes' | 'no' | 'error'>('no')
 
 	async ngOnInit() {
+		if (typeof window.electron === 'undefined') {
+			return
+		}
+
 		this.isMaximized.set(await window.electron.invoke.isMaximized())
+
 		window.electron.on.minimized(() => {
 			this.isMaximized.set(false)
 		})
@@ -32,10 +37,14 @@ export class ToolbarComponent implements OnInit {
 	}
 
 	minimize() {
-		window.electron.emit.minimize()
+		window.electron?.emit.minimize()
 	}
 
 	async toggleMaximized() {
+		if (!window.electron) {
+			return
+		}
+
 		if (await window.electron.invoke.isMaximized()) {
 			window.electron.emit.restore()
 		} else {
@@ -45,6 +54,6 @@ export class ToolbarComponent implements OnInit {
 	}
 
 	close() {
-		window.electron.emit.quit()
+		window.electron?.emit.quit()
 	}
 }
