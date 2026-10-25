@@ -7,6 +7,7 @@ import { SngStream } from 'parse-sng'
 
 import { configureCatalogDb, getCatalogDb } from '../src-electron/ipc/catalog/CatalogDatabase.js'
 import { getChartScanner } from '../src-electron/ipc/catalog/ChartScanner.js'
+import { DownloadQueue } from '../src-electron/ipc/download/DownloadQueue.js'
 import { defaultSettings } from '../src-shared/Settings.js'
 import { catalogPath, configPath, ensureStorageDirectories, frontendPath, settingsPath, songsPath, tempPath } from './paths.js'
 
@@ -17,6 +18,8 @@ import type {
 	ScanProgress,
 	ScanResult,
 } from '../src-shared/interfaces/catalog.interface.js'
+import type { Download } from '../src-shared/interfaces/download.interface.js'
+
 configureCatalogDb(catalogPath)
 
 const app = express()
@@ -24,6 +27,10 @@ const port = Number(process.env.PORT ?? 8080)
 
 app.disable('x-powered-by')
 app.use(express.json({ limit: '1mb' }))
+
+app.get('/api/config/storage', (_req, res) => {
+	res.json({ songsPath })
+})
 
 app.get('/api/health', async (_req, res) => {
 	const checks = await Promise.all(
@@ -365,6 +372,85 @@ function publishEvent(eventName: string, data: unknown): void {
 		}
 	}
 }
+
+async function getWebDownloadSettings(): Promise<Settings> {
+	let settings: Settings
+
+	try {
+		settings = {
+			...defaultSettings,
+			...JSON.parse(await readFile(settingsPath, 'utf8')),
+		}
+	} catch (error) {
+		if (
+			typeof error === 'object' &&
+			error !== null &&
+			'code' in error &&
+			error.code === 'ENOENT'
+		) {
+			settings = { ...defaultSettings }
+		} else {
+			throw error
+		}
+	}
+
+	return settings
+}
+
+const downloadQueue = new DownloadQueue(
+	(eventName, data) => publishEvent(eventName, data),
+	{
+		getSettings: getWebDownloadSettings,
+		tempPath,
+		destinationPath: songsPath,
+	},
+)
+
+app.post('/api/download', (req, res) => {
+	const data = req.body as Download
+
+	if (
+		!data ||
+		typeof data !== 'object' ||
+		!['add', 'retry', 'remove'].includes(data.action) ||
+		typeof data.md5 !== 'string' ||
+		!data.md5.trim()
+	) {
+		res.status(400).json({ error: 'Invalid download request' })
+		return
+	}
+
+	switch (data.action) {
+		case 'add':
+			if (
+				typeof data.hasVideoBackground !== 'boolean' ||
+				!data.chart ||
+				typeof data.chart !== 'object' ||
+				!['name', 'artist', 'album', 'genre', 'year', 'charter']
+					.every(key => typeof data.chart![key as keyof typeof data.chart] === 'string')
+			) {
+				res.status(400).json({ error: 'Invalid chart download data' })
+				return
+			}
+
+			downloadQueue.add(
+				data.md5,
+				data.hasVideoBackground,
+				data.chart,
+			)
+			break
+
+		case 'retry':
+			downloadQueue.retry(data.md5)
+			break
+
+		case 'remove':
+			downloadQueue.remove(data.md5)
+			break
+	}
+
+	res.json({ status: 'ok' })
+})
 
 app.get('/api/events', (req, res) => {
 	res.status(200)

@@ -15,7 +15,7 @@ import { themes } from 'src-shared/Settings'
 export class SettingsComponent implements OnInit {
 	settingsService = inject(SettingsService)
 
-	@ViewChild('themeDropdown', { static: true }) themeDropdown: ElementRef
+	@ViewChild('themeDropdown') themeDropdown!: ElementRef
 
 	chartFolderName: FormControl<string>
 	isSng: FormControl<boolean>
@@ -39,6 +39,8 @@ export class SettingsComponent implements OnInit {
 	updateDownloaded = signal(false)
 	updateRetrying = signal(false)
 	currentVersion = signal('')
+
+	readonly isWeb = typeof window === 'undefined' || !window.electron
 
 	constructor() {
 		const ss = this.settingsService
@@ -73,9 +75,11 @@ export class SettingsComponent implements OnInit {
 		this.uploadedColumn.valueChanges.subscribe(value => value ? ss.addVisibleColumn('uploaded') : ss.removeVisibleColumn('uploaded'))
 	}
 
+
 	async ngOnInit() {
-		if (typeof window === 'undefined' || !window.electron) {
+		if (this.isWeb) {
 			this.updateAvailable.set('no')
+			await this.settingsService.loadServerConfig()
 			return
 		}
 

@@ -1,7 +1,20 @@
-import { emitIpcEvent } from '../../main.js'
 import { ChartDownload } from './ChartDownload.js'
 
+import type { ChartDownloadOptions } from './ChartDownload.js'
+
+import type { DownloadProgress } from '../../../src-shared/interfaces/download.interface.js'
+
+type DownloadQueueEventEmitter = (
+	eventName: 'downloadQueueUpdate',
+	data: DownloadProgress,
+) => void
+
 export class DownloadQueue {
+
+	constructor(
+		private readonly emitEvent: DownloadQueueEventEmitter,
+		private readonly downloadOptions: ChartDownloadOptions,
+	) { }
 
 	private downloadQueue: ChartDownload[] = []
 	private retryQueue: ChartDownload[] = []
@@ -22,10 +35,15 @@ export class DownloadQueue {
 		chart: { name: string; artist: string; album: string; genre: string; year: string; charter: string },
 	) {
 		if (!this.isChartInQueue(md5)) {
-			const chartDownload = new ChartDownload(md5, hasVideoBackground, chart)
+			const chartDownload = new ChartDownload(
+				md5,
+				hasVideoBackground,
+				chart,
+				this.downloadOptions,
+			)
 			this.downloadQueue.push(chartDownload)
 
-			chartDownload.on('progress', (message, percent) => emitIpcEvent('downloadQueueUpdate', {
+			chartDownload.on('progress', (message, percent) => this.emitEvent('downloadQueueUpdate', {
 				md5,
 				chart,
 				header: message.header,
@@ -35,7 +53,7 @@ export class DownloadQueue {
 				isPath: false,
 			}))
 			chartDownload.on('error', err => {
-				emitIpcEvent('downloadQueueUpdate', {
+				this.emitEvent('downloadQueueUpdate', {
 					md5,
 					chart,
 					header: err.header,
@@ -51,7 +69,7 @@ export class DownloadQueue {
 				this.moveQueue()
 			})
 			chartDownload.on('end', destinationPath => {
-				emitIpcEvent('downloadQueueUpdate', {
+				this.emitEvent('downloadQueueUpdate', {
 					md5,
 					chart,
 					header: 'Download complete',
@@ -83,7 +101,7 @@ export class DownloadQueue {
 			this.moveQueue()
 		}
 
-		emitIpcEvent('downloadQueueUpdate', {
+		this.emitEvent('downloadQueueUpdate', {
 			md5,
 			chart: { name: '', artist: '', album: '', genre: '', year: '', charter: '' },
 			header: '',

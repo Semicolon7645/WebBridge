@@ -5,7 +5,7 @@
   "customThemePath": null,
   "libraryFolders": [],
   "chartFolderName": "{artist} - {name} ({charter})",
-  "isSng": false,
+  "isSng": true,
   "isCompactTable": false,
   "visibleColumns": [
     "artist",

@@ -6,50 +6,63 @@
 				<i class="bi bi-folder2-open mr-2"></i>
 				Library Folders
 			</h2>
-			<p class="text-sm text-base-content/70 mb-4">
-				Manage your chart library folders. Downloads will be saved to the folder marked as default.
-			</p>
 
-			<!-- Library Folders List -->
-			<div class="flex flex-col gap-2 mb-4">
-				@if (settingsService.libraryFolders.length === 0) {
-					<div class="alert alert-warning">
-						<i class="bi bi-exclamation-triangle"></i>
-						<span>No library folders configured. Add a folder to start downloading charts.</span>
-					</div>
-				}
-				@for (folder of settingsService.libraryFolders; track folder.path) {
-					<div class="flex items-center gap-2 bg-base-100 rounded-lg p-3">
-						<div class="flex-1 flex items-center gap-3 min-w-0">
-							<button
-								(click)="setDefaultFolder(folder.path)"
-								class="btn btn-circle btn-sm"
-								[class.btn-primary]="folder.isDefault"
-								[class.btn-ghost]="!folder.isDefault"
-								[attr.data-tip]="folder.isDefault ? 'Default folder' : 'Set as default'">
-								<i class="bi" [ngClass]="folder.isDefault ? 'bi-star-fill' : 'bi-star'"></i>
-							</button>
-							<span class="truncate flex-1 font-mono text-sm" [title]="folder.path">{{ folder.path }}</span>
-							@if (folder.isDefault) {
-								<span class="badge badge-primary badge-sm">Default</span>
-							}
-						</div>
-						<div class="flex gap-1">
-							<button (click)="openFolder(folder.path)" class="btn btn-ghost btn-sm btn-square" data-tip="Open folder">
-								<i class="bi bi-folder2-open"></i>
-							</button>
-							<button (click)="removeLibraryFolder(folder.path)" class="btn btn-ghost btn-sm btn-square text-error" data-tip="Remove">
-								<i class="bi bi-trash"></i>
-							</button>
-						</div>
-					</div>
-				}
-			</div>
+			@if (isWeb) {
+				<p class="text-sm text-base-content/70">
+					The library directory is configured through the server's Docker
+					volume mount.
+				</p>
+				<div class="flex items-center gap-3 bg-base-100 rounded-lg p-3">
+					<i class="bi bi-folder2-open"></i>
+					<span class="font-mono text-sm break-all">
+						{{ settingsService.serverLibraryPath() ?? 'Loading…' }}
+					</span>
+				</div>
+			} @else {
+				<p class="text-sm text-base-content/70 mb-4">
+					Manage your chart library folders. Downloads will be saved to the folder marked as default.
+				</p>
 
-			<button (click)="addLibraryFolder()" class="btn btn-primary btn-sm w-fit">
-				<i class="bi bi-plus-lg"></i>
-				Add Library Folder
-			</button>
+				<div class="flex flex-col gap-2 mb-4">
+					@if (settingsService.libraryFolders.length === 0) {
+						<div class="alert alert-warning">
+							<i class="bi bi-exclamation-triangle"></i>
+							<span>No library folders configured. Add a folder to start downloading charts.</span>
+						</div>
+					}
+					@for (folder of settingsService.libraryFolders; track folder.path) {
+						<div class="flex items-center gap-2 bg-base-100 rounded-lg p-3">
+							<div class="flex-1 flex items-center gap-3 min-w-0">
+								<button
+									(click)="setDefaultFolder(folder.path)"
+									class="btn btn-circle btn-sm"
+									[class.btn-primary]="folder.isDefault"
+									[class.btn-ghost]="!folder.isDefault"
+									[attr.data-tip]="folder.isDefault ? 'Default folder' : 'Set as default'">
+									<i class="bi" [ngClass]="folder.isDefault ? 'bi-star-fill' : 'bi-star'"></i>
+								</button>
+								<span class="truncate flex-1 font-mono text-sm" [title]="folder.path">{{ folder.path }}</span>
+								@if (folder.isDefault) {
+									<span class="badge badge-primary badge-sm">Default</span>
+								}
+							</div>
+							<div class="flex gap-1">
+								<button (click)="openFolder(folder.path)" class="btn btn-ghost btn-sm btn-square" data-tip="Open folder">
+									<i class="bi bi-folder2-open"></i>
+								</button>
+								<button (click)="removeLibraryFolder(folder.path)" class="btn btn-ghost btn-sm btn-square text-error" data-tip="Remove">
+									<i class="bi bi-trash"></i>
+								</button>
+							</div>
+						</div>
+					}
+				</div>
+
+				<button (click)="addLibraryFolder()" class="btn btn-primary btn-sm w-fit">
+					<i class="bi bi-plus-lg"></i>
+					Add Library Folder
+				</button>
+			}
 		</div>
 	</section>
 

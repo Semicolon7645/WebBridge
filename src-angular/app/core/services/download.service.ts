@@ -1,12 +1,13 @@
+import { HttpClient } from '@angular/common/http'
 import { computed, Injectable, signal } from '@angular/core'
 
 import _ from 'lodash'
 import { ChartData } from 'src-shared/interfaces/search.interface'
 import { resolveChartFolderName } from 'src-shared/UtilFunctions'
 
-import { DownloadProgress } from '../../../../src-shared/interfaces/download.interface'
 import { SettingsService } from './settings.service'
 
+import type { Download, DownloadProgress } from '../../../../src-shared/interfaces/download.interface'
 @Injectable({
 	providedIn: 'root',
 })
@@ -49,24 +50,86 @@ export class DownloadService {
 		this.downloads().find(download => download.type === 'error') ? true : false
 	)
 
-	constructor(private settingsService: SettingsService) {
-		if (typeof window.electron === 'undefined') {
+	constructor(
+		private settingsService: SettingsService,
+		private http: HttpClient,
+	) {
+		if (typeof window.electron !== 'undefined') {
+			window.electron.on.downloadQueueUpdate(download => {
+				this.applyDownloadUpdate(download)
+			})
 			return
 		}
 
-		window.electron.on.downloadQueueUpdate(download => {
-			this.downloads.update(downloads => {
-				const downloadIndex = downloads.findIndex(d => d.md5 === download.md5)
-				if (download.type === 'cancel') {
-					return downloads.filter(d => d.md5 !== downloads[downloadIndex]?.md5)
-				} else if (downloadIndex === -1) {
-					return [...downloads, download]
-				} else {
-					const newDownloads = [...downloads]
-					newDownloads[downloadIndex] = { ...newDownloads[downloadIndex], ...download }
-					return newDownloads
-				}
-			})
+		const eventSource = new EventSource('/api/events')
+
+		eventSource.addEventListener('downloadQueueUpdate', event => {
+			try {
+				const download = JSON.parse(
+					(event as MessageEvent).data,
+				) as DownloadProgress
+
+				this.applyDownloadUpdate(download)
+			} catch (error) {
+				console.error('Failed to process download update:', error)
+			}
+		})
+	}
+
+	private applyDownloadUpdate(download: DownloadProgress) {
+		this.downloads.update(downloads => {
+			const downloadIndex = downloads.findIndex(
+				d => d.md5 === download.md5,
+			)
+
+			if (download.type === 'cancel') {
+				return downloads.filter(
+					d => d.md5 !== download.md5,
+				)
+			}
+
+			if (downloadIndex === -1) {
+				return [...downloads, download]
+			}
+
+			const newDownloads = [...downloads]
+			newDownloads[downloadIndex] = {
+				...newDownloads[downloadIndex],
+				...download,
+			}
+
+			return newDownloads
+		})
+	}
+
+	private sendDownload(data: Download) {
+		if (typeof window.electron !== 'undefined') {
+			window.electron.emit.download(data)
+			return
+		}
+
+		this.http.post('/api/download', data).subscribe({
+			error: error => {
+				console.error('Download request failed:', error)
+
+				this.downloads.update(downloads =>
+					downloads.map(download =>
+						download.md5 === data.md5
+							? {
+								...download,
+								type: 'error',
+								header: 'Download request failed',
+								body: String(
+									error?.error?.error ??
+									error?.message ??
+									'Unable to contact the server',
+								),
+								percent: null,
+							}
+							: download,
+					),
+				)
+			},
 		})
 	}
 
@@ -93,19 +156,24 @@ export class DownloadService {
 				type: 'good',
 				isPath: false,
 			}])
-			window.electron.emit.download({ action: 'add', md5: chart.md5, hasVideoBackground: chart.hasVideoBackground, chart: newChart })
+			this.sendDownload({
+				action: 'add',
+				md5: chart.md5,
+				hasVideoBackground: chart.hasVideoBackground,
+				chart: newChart,
+			})
 		}
 	}
 
 	cancelDownload(md5: string) {
-		window.electron.emit.download({ action: 'remove', md5 })
+		this.sendDownload({ action: 'remove', md5 })
 	}
 
 	cancelAllCompleted() {
 		const currentDownloads = this.downloads()
 		for (const download of currentDownloads) {
 			if (download.type === 'done') {
-				window.electron.emit.download({ action: 'remove', md5: download.md5 })
+				this.sendDownload({ action: 'remove', md5: download.md5 })
 			}
 		}
 		this.downloads.update(downloads => downloads.filter(d => d.type !== 'done'))
@@ -124,7 +192,7 @@ export class DownloadService {
 					isPath: false,
 					percent: 0,
 				}
-				window.electron.emit.download({ action: 'retry', md5 })
+				this.sendDownload({ action: 'retry', md5 })
 				return newDownloads
 			}
 			return downloads

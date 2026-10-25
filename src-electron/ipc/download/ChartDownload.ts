@@ -12,9 +12,9 @@ import { Readable } from 'stream'
 import { ReadableStream } from 'stream/web'
 import { inspect } from 'util'
 
-import { tempPath } from '../../../src-shared/Paths.js'
 import { resolveChartFolderName } from '../../../src-shared/UtilFunctions.js'
-import { getSettings } from '../SettingsHandler.ipc.js'
+
+import type { Settings } from '../../../src-shared/Settings.js'
 
 export interface DownloadMessage {
 	header: string
@@ -48,6 +48,12 @@ export declare interface ChartDownload {
 	on(event: 'end', listener: (destinationPath: string) => void): void
 }
 
+export interface ChartDownloadOptions {
+	getSettings: () => Promise<Settings>
+	tempPath: string
+	destinationPath?: string
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class ChartDownload {
 
@@ -56,11 +62,11 @@ export class ChartDownload {
 	private eventEmitter = new EventEmitter()
 
 	private stepCompletedCount = 0
-	private tempPath: string
+	private tempPath!: string
 
-	private chartFolderPath: string
-	private isSng: boolean
-	private downloadVideos: boolean
+	private chartFolderPath!: string
+	private isSng!: boolean
+	private downloadVideos!: boolean
 
 	private showProgress = _.throttle((description: string, percent: number | null = null) => {
 		this.eventEmitter.emit('progress', { header: description, body: '' }, percent)
@@ -70,6 +76,7 @@ export class ChartDownload {
 		public readonly md5: string,
 		public readonly hasVideoBackground: boolean,
 		private chart: { name: string; artist: string; album: string; genre: string; year: string; charter: string },
+		private options: ChartDownloadOptions,
 	) { }
 
 	on<T extends keyof ChartDownloadEvents>(event: T, listener: ChartDownloadEvents[T]) {
@@ -92,12 +99,29 @@ export class ChartDownload {
 				case 1: await this.downloadChart(); this.stepCompletedCount++; if (this._canceled) { return } // break omitted
 				case 2: await this.transferChart(); this.stepCompletedCount++; if (this._canceled) { return } // break omitted
 			}
-		} catch (err) {
+		} catch (err: unknown) {
 			this.showProgress.cancel()
-			if (err.header && (err.body || err.body === '')) {
-				this.eventEmitter.emit('error', err)
+
+			if (
+				typeof err === 'object' &&
+				err !== null &&
+				'header' in err &&
+				typeof err.header === 'string' &&
+				'body' in err &&
+				(typeof err.body === 'string' || err.body === '')
+			) {
+				this.eventEmitter.emit('error', {
+					header: err.header,
+					body: err.body,
+					...('isPath' in err && typeof err.isPath === 'boolean'
+						? { isPath: err.isPath }
+						: {}),
+				})
 			} else {
-				this.eventEmitter.emit('error', { header: 'Unknown Error', body: inspect(err) })
+				this.eventEmitter.emit('error', {
+					header: 'Unknown Error',
+					body: inspect(err),
+				})
 			}
 		}
 	}
@@ -115,12 +139,13 @@ export class ChartDownload {
 
 	private async checkFilesystem() {
 		this.showProgress('Loading settings...')
-		const settings = await getSettings()
+		const settings = await this.options.getSettings()
 		if (this._canceled) { return }
 
-		// Get the default library path from libraryFolders, or fallback to legacy libraryPath
 		const defaultFolder = settings.libraryFolders?.find(f => f.isDefault) ?? settings.libraryFolders?.[0]
-		const libraryPath = defaultFolder?.path ?? settings.libraryPath
+		const libraryPath = this.options.destinationPath
+			?? defaultFolder?.path
+			?? settings.libraryPath
 
 		if (!libraryPath) {
 			throw { header: 'Library folder not specified', body: 'Please go to the settings to set your library folder.' }
@@ -145,7 +170,7 @@ export class ChartDownload {
 			throw { header: 'This chart already exists in your library folder', body: destinationPath, isPath: true }
 		}
 
-		this.tempPath = join(tempPath, randomUUID()) + (this.isSng ? '.sng' : '')
+		this.tempPath = join(this.options.tempPath, randomUUID()) + (this.isSng ? '.sng' : '')
 	}
 
 	private async downloadChart() {
@@ -218,12 +243,13 @@ export class ChartDownload {
 	}
 
 	private async transferChart() {
-		const settings = await getSettings()
+		const settings = await this.options.getSettings()
 		if (this._canceled) { return }
 
-		// Get the default library path from libraryFolders, or fallback to legacy libraryPath
 		const defaultFolder = settings.libraryFolders?.find(f => f.isDefault) ?? settings.libraryFolders?.[0]
-		const libraryPath = defaultFolder?.path ?? settings.libraryPath
+		const libraryPath = this.options.destinationPath
+			?? defaultFolder?.path
+			?? settings.libraryPath
 
 		this.showProgress('Moving chart to library folder...', 100)
 		await new Promise<void>(resolve => setTimeout(resolve, 200)) // Delay for OS file processing

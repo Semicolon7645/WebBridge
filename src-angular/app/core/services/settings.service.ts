@@ -15,6 +15,7 @@ import { colorNames, convertColorFormat } from '../../../../src-shared/UtilFunct
 export class SettingsService {
 
 	private _settings = signal<Settings | null>(null)
+	serverLibraryPath = signal<string | null>(null)
 
 	constructor(
 		@Inject(DOCUMENT) private document: Document,
@@ -55,6 +56,13 @@ export class SettingsService {
 
 	private get settings(): Settings {
 		return this._settings()!
+	}
+
+	async loadServerConfig() {
+		const config = await firstValueFrom(
+			this.http.get<{ songsPath: string }>('/api/config/storage'),
+		)
+		this.serverLibraryPath.set(config.songsPath)
 	}
 
 	private saveSettings() {
