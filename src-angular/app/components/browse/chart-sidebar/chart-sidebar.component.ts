@@ -1,6 +1,6 @@
-import { Component, ElementRef, HostBinding, OnInit, Renderer2, ViewChild, signal, computed, inject, effect } from '@angular/core'
-import { ReactiveFormsModule, FormControl } from '@angular/forms'
 import { NgClass, NgStyle } from '@angular/common'
+import { Component, computed, effect, ElementRef, HostBinding, inject, OnInit, Renderer2, signal, ViewChild } from '@angular/core'
+import { FormControl, ReactiveFormsModule } from '@angular/forms'
 
 import _ from 'lodash'
 import { Difficulty, Instrument, NotesData } from 'scan-chart'
@@ -40,8 +40,8 @@ export class ChartSidebarComponent implements OnInit {
 
 	@HostBinding('class.contents') contents = true
 
-	@ViewChild('menu') menu: ElementRef
-	@ViewChild('libraryDirectoryErrorModal') libraryDirectoryErrorModal: ElementRef<HTMLDialogElement>
+	@ViewChild('menu') menu!: ElementRef
+	@ViewChild('libraryDirectoryErrorModal') libraryDirectoryErrorModal!: ElementRef<HTMLDialogElement>
 
 	shortInstrumentDisplay = shortInstrumentDisplay
 	difficultyDisplay = difficultyDisplay
@@ -58,8 +58,8 @@ export class ChartSidebarComponent implements OnInit {
 	selectedChart = signal<ChartData | null>(null)
 	charts = signal<ChartData[][] | null>(null)
 
-	instrumentDropdown: FormControl<Instrument>
-	difficultyDropdown: FormControl<Difficulty>
+	instrumentDropdown!: FormControl<Instrument>
+	difficultyDropdown!: FormControl<Difficulty>
 
 	// Computed properties
 	albumArtMd5 = computed(() => {
@@ -354,9 +354,12 @@ export class ChartSidebarComponent implements OnInit {
 	/**
 	 * Adds the selected chart to the download queue.
 	 */
+
 	onDownloadClicked() {
 		const chart = this.selectedChart()
-		if (this.settingsService.libraryDirectory) {
+		const isBrowser = typeof window.electron === 'undefined'
+
+		if (isBrowser || this.settingsService.libraryDirectory) {
 			if (chart) {
 				this.downloadService.addDownload(chart)
 			}
@@ -364,6 +367,7 @@ export class ChartSidebarComponent implements OnInit {
 			this.libraryDirectoryErrorModal.nativeElement.showModal()
 		}
 	}
+
 
 	showMenu() {
 		this.menuVisible.set(true)
